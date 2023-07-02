@@ -1,37 +1,60 @@
 const { request, response } = require('express');
+const bcryptjs = require('bcryptjs');
 
-const getUsers = (req = request, res = response) => {
-    const { q, name = 'No name', apiKey, page= 1, limit = 10 } = req.query;
+const User = require('../models/user');
+
+const getUsers = async(req = request, res = response) => {
+    const { limit = 5, offset = 0 } = req.query;
+    const query = { status: true };
+
+    const [total, users] = await Promise.all([
+        User.countDocuments(query),
+        await User.find(query)
+            .skip(offset)
+            .limit(limit)
+    ])
+
     res.json({
-        msg: 'get api - controller',
-        q,
-        name,
-        apiKey,
-        page,
-        limit
+        total,
+        users
     });
 }
 
-const createUser = (req = request, res = response) => {
-    const body = req.body;
+const createUser = async(req = request, res = response) => {
+    const { name, email, password, role } = req.body;
+    const user = new User({name, email, password, role} );
+
+    const salt = bcryptjs.genSaltSync();
+    user.password =  bcryptjs.hashSync(password, salt);
+
+    await user.save();
 
     res.status(201).json({
-        msg: 'post api - controller',
-        body
+        user
     });
 }
 
-const updateUser = (req = request, res = response) => {
+const updateUser = async(req = request, res = response) => {
     const id = req.params.userId;
-    res.json({
-        msg: 'put api - controller',
-        id
-    });
+    const { _id, password, isGoogle, ...rest } = req.body;
+
+    if (password) {
+        const salt = bcryptjs.genSaltSync();
+        rest.password =  bcryptjs.hashSync(password, salt);
+    }
+
+    const user = await User.findByIdAndUpdate(id, rest);
+
+    res.json(user);
 }
 
-const deleteUser = (req = request, res= response) => {
+const deleteUser = async(req = request, res= response) => {
+    const id = req.params.userId;
+
+    const user = await User.findByIdAndUpdate(id, {status: false});
+
     res.json({
-        msg: 'delete api - controller'
+        user
     });
 }
 
